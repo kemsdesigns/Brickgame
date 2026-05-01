@@ -858,7 +858,12 @@ function resize() {
   BRICK_W = Math.floor((W - (COLS + 1) * BRICK_PAD) / COLS);
   BRICK_H = Math.floor(BRICK_W * 0.38);
   const isMobile = window.innerWidth <= 768;
-  PADDLE_W = Math.floor(W * (isMobile ? 0.32 : 0.18)); // Bigger for mobile
+  let basePW = isMobile ? 0.32 : 0.18;
+  if (gs.activeEffects) {
+    if (gs.activeEffects.bigPad > 0) basePW *= 1.6;
+    if (gs.activeEffects.smallPad > 0) basePW *= 0.6;
+  }
+  PADDLE_W = Math.floor(W * basePW);
   PADDLE_Y = H - 50;
 }
 
@@ -870,12 +875,16 @@ function initGame() {
   gs = {
     phase: 'idle', // idle, playing, dead, levelclear, gameover
     score: 0,
-    level: 1,
-    lives: 3,
-    multiplier: 1,
-    currentSpeed: W * 0.018, // Persistent speed tracker
+    currentSpeed: W * 0.018,
     paddle: { x: W / 2, vx: 0 },
-    balls: [], // Array for multi-ball support
+    balls: [],
+    powerups: [], // Falling gems
+    activeEffects: {
+      fireball: 0, // Number of hits remaining
+      bigPad: 0,
+      smallPad: 0,
+      dblMult: 0,
+    },
     bricks: [],
     totalBricks: 0,
     brokenBricks: 0,
@@ -969,10 +978,32 @@ function update() {
   if (gs.phase !== 'playing') return;
 
   // Paddle
+  const isMobile = window.innerWidth <= 768;
+  let basePW = isMobile ? 0.32 : 0.18;
+  if (gs.activeEffects.bigPad > 0) basePW *= 1.6;
+  if (gs.activeEffects.smallPad > 0) basePW *= 0.6;
+  PADDLE_W = Math.floor(W * basePW);
+
   gs.paddle.x += (mouseX - gs.paddle.x) * 0.32;
   gs.paddle.x = Math.max(PADDLE_W / 2, Math.min(W - PADDLE_W / 2, gs.paddle.x));
 
   const maxSpd = (W * 0.04) + gs.level * (W * 0.005);
+
+  // Powerups falling
+  for (let i = gs.powerups.length - 1; i >= 0; i--) {
+    const p = gs.powerups[i];
+    p.y += 4.5;
+    
+    // Paddle collision
+    const px = gs.paddle.x, py = PADDLE_Y, pw = PADDLE_W;
+    if (p.y + 10 >= py && p.y <= py + PADDLE_H && p.x >= px - pw/2 - 10 && p.x <= px + pw/2 + 10) {
+      applyPowerup(p.type);
+      gs.powerups.splice(i, 1);
+      continue;
+    }
+    
+    if (p.y > H + 20) gs.powerups.splice(i, 1);
+  }
 
   for (let i = gs.balls.length - 1; i >= 0; i--) {
     const ball = gs.balls[i];
@@ -1055,7 +1086,7 @@ function update() {
         } else {
           ball.vy *= -1;
         }
-        hitBrick(b);
+        hitBrick(b, ball);
         break;
       }
     }
@@ -1065,9 +1096,23 @@ function update() {
   gs.bricks.forEach(b => { if (b.flashTimer > 0) b.flashTimer--; });
 }
 
-function hitBrick(b) {
+function hitBrick(b, ball) {
   b.hp--;
   soundBrick(b.row, BRICK_ROWS);
+  
+  if (gs.activeEffects.fireball > 0) {
+    gs.activeEffects.fireball--;
+    // AOE Damage
+    gs.bricks.forEach(other => {
+      if (other.alive && Math.hypot(other.x - b.x, other.y - b.y) < BRICK_W * 1.5) {
+        other.hp = 0; other.alive = false; gs.brokenBricks++;
+        gs.score += ROW_COLORS[other.row].score * gs.multiplier;
+        spawnShatter(other.x + BRICK_W/2, other.y + BRICK_H/2, ROW_COLORS[other.row].main);
+      }
+    });
+    flashScreen('#ff6b35', 0.15);
+  }
+
   if (b.hp <= 0) {
     b.alive = false;
     gs.brokenBricks++;
@@ -1075,10 +1120,16 @@ function hitBrick(b) {
     const pts = ROW_COLORS[b.row].score * gs.multiplier;
     gs.score += pts;
     const rect = canvas.getBoundingClientRect();
-    const sx = rect.left + b.x + BRICK_W / 2;
-    const sy = rect.top + b.y + BRICK_H / 2;
+    const sx = b.x + BRICK_W / 2;
+    const sy = b.y + BRICK_H / 2;
     spawnShatter(sx, sy, ROW_COLORS[b.row].main);
     spawnScorePop(sx, sy, '+' + pts, ROW_COLORS[b.row].main);
+    
+    // Drop Powerup
+    if (Math.random() < 0.12) {
+      spawnPowerup(sx, sy);
+    }
+
     updateUI();
     updateLevelBar();
     flashScreen(ROW_COLORS[b.row].main, 0.08);
@@ -1088,15 +1139,73 @@ function hitBrick(b) {
   } else {
     b.flashTimer = 6;
   }
+
+  if (gs.activeEffects.bigPad > 0) gs.activeEffects.bigPad--;
+  if (gs.activeEffects.smallPad > 0) gs.activeEffects.smallPad--;
+  if (gs.activeEffects.dblMult > 0) {
+    gs.activeEffects.dblMult--;
+    gs.multiplier *= 2;
+  }
+
   // Build momentum: increase ball speed slightly per hit
   const speedBoost = 1.012;
   gs.currentSpeed *= speedBoost;
-  // Apply speed boost to all active balls
   gs.balls.forEach(ball => {
     ball.vx *= speedBoost;
     ball.vy *= speedBoost;
   });
   updateUI();
+}
+
+function spawnPowerup(x, y) {
+  const types = [
+    { id: 'SPEED', color: '#ff2244' },
+    { id: 'BIG_PAD', color: '#88ff44' },
+    { id: 'DBL_MULT', color: '#ffd700' },
+    { id: 'FIREBALL', color: '#ff6b35' },
+    { id: 'SMALL_PAD', color: '#aa77ff' },
+    { id: 'TRIPLE_BALL', color: '#00e5ff' },
+    { id: 'DOUBLE_BALL', color: '#00b4ff' },
+    { id: 'EXTRA_LIFE', color: '#ff3b5c' },
+    { id: 'MEGA_CLEAN', color: '#ffffff' }
+  ];
+  
+  let type;
+  const rand = Math.random();
+  if (rand < 0.005) type = types[8]; // Mega Rare
+  else if (rand < 0.05) type = types[7];
+  else type = types[Math.floor(Math.random() * 7)];
+  
+  gs.powerups.push({ x, y, type: type.id, color: type.color });
+}
+
+function applyPowerup(id) {
+  soundLaunch(); // Use launch sound as pickup sound
+  spawnScorePop(gs.paddle.x, PADDLE_Y - 40, id, '#fff');
+  
+  switch(id) {
+    case 'SPEED': gs.currentSpeed *= 1.15; break;
+    case 'BIG_PAD': gs.activeEffects.bigPad = 15; break;
+    case 'SMALL_PAD': gs.activeEffects.smallPad = 10; break;
+    case 'DBL_MULT': gs.activeEffects.dblMult = 15; break;
+    case 'FIREBALL': gs.activeEffects.fireball = 10; break;
+    case 'TRIPLE_BALL': for(let i=0;i<3;i++) addExtraBall(); break;
+    case 'DOUBLE_BALL': for(let i=0;i<2;i++) addExtraBall(); break;
+    case 'EXTRA_LIFE': gs.lives = Math.min(gs.lives + 1, 5); updateLives(); break;
+    case 'MEGA_CLEAN': 
+      gs.lives = 3; updateLives(); 
+      gs.bricks.forEach(b => { if(b.alive){ b.alive=false; gs.brokenBricks++; } });
+      break;
+  }
+}
+
+function addExtraBall() {
+  gs.balls.push({
+    x: gs.paddle.x, y: PADDLE_Y - BALL_R - 5,
+    vx: (Math.random()-0.5) * gs.currentSpeed,
+    vy: -gs.currentSpeed,
+    attached: false
+  });
 }
 
 function loseLife() {
@@ -1315,9 +1424,34 @@ function drawIdleText() {
 function render() {
   drawBackground();
   drawBricks();
+  drawPowerups();
   drawPaddle();
   drawBall();
   drawIdleText();
+}
+
+function drawPowerups() {
+  gs.powerups.forEach(p => {
+    ctx2.save();
+    ctx2.shadowColor = p.color;
+    ctx2.shadowBlur = 15;
+    ctx2.fillStyle = p.color;
+    ctx2.beginPath();
+    // Diamond shape for gems
+    ctx2.moveTo(p.x, p.y - 12);
+    ctx2.lineTo(p.x + 8, p.y);
+    ctx2.lineTo(p.x, p.y + 12);
+    ctx2.lineTo(p.x - 8, p.y);
+    ctx2.closePath();
+    ctx2.fill();
+    
+    // Shine
+    ctx2.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx2.beginPath();
+    ctx2.arc(p.x - 2, p.y - 4, 2, 0, Math.PI*2);
+    ctx2.fill();
+    ctx2.restore();
+  });
 }
 
 // ===================== EFFECTS =====================
