@@ -910,7 +910,7 @@ function buildBricks() {
 function launchBall() {
   if (!gs.ball.attached) return;
   const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.8;
-  const speed = 14 + gs.level * 1.8;
+  const speed = 11 + gs.level * 2.0; // Slower start (was 14)
   gs.ball.vx = Math.cos(angle) * speed;
   gs.ball.vy = Math.sin(angle) * speed;
   gs.ball.attached = false;
@@ -1055,6 +1055,10 @@ function hitBrick(b) {
   } else {
     b.flashTimer = 6;
   }
+  // Build momentum: increase ball speed slightly per hit
+  const speedBoost = 1.012;
+  gs.ball.vx *= speedBoost;
+  gs.ball.vy *= speedBoost;
   updateUI();
 }
 
