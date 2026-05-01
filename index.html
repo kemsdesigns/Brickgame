@@ -87,6 +87,66 @@ html, body {
   align-items: stretch;
 }
 
+@media (max-width: 768px) {
+  #layout {
+    flex-direction: column;
+  }
+  #sidebar {
+    width: 100% !important;
+    min-width: 100% !important;
+    height: 80px;
+    flex-direction: row !important;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(0,255,204,0.06);
+    padding: 0 15px !important;
+    gap: 15px !important;
+  }
+  #game-title {
+    writing-mode: horizontal-tb !important;
+    transform: none !important;
+    font-size: 0.9rem !important;
+    letter-spacing: 0.2em !important;
+  }
+  .side-val {
+    font-size: 1.2rem !important;
+  }
+  .side-label {
+    font-size: 0.6rem !important;
+  }
+  #rightbar {
+    width: 100% !important;
+    min-width: 100% !important;
+    height: 60px;
+    flex-direction: row !important;
+    border-left: none !important;
+    border-top: 1px solid rgba(0,255,204,0.06);
+    padding: 0 15px !important;
+    gap: 20px !important;
+  }
+  #level-bar-bg {
+    width: 80px !important;
+    height: 6px !important;
+  }
+  #level-bar-fill {
+    width: 0%;
+    height: 100% !important;
+    bottom: 0; left: 0;
+  }
+  #level-progress-wrap {
+    flex-direction: row !important;
+    gap: 10px !important;
+  }
+  .side-divider {
+    display: none;
+  }
+  body, html {
+    cursor: auto !important;
+  }
+  #cursor {
+    display: none;
+  }
+}
+
 /* Sidebar */
 #sidebar {
   width: 180px;
@@ -860,11 +920,22 @@ function launchBall() {
 
 // ===================== UPDATE =====================
 let mouseX = W / 2;
-document.addEventListener('mousemove', e => {
+function handleMove(e) {
   const rect = canvas.getBoundingClientRect();
-  mouseX = e.clientX - rect.left;
-});
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  mouseX = clientX - rect.left;
+}
+document.addEventListener('mousemove', handleMove);
+document.addEventListener('touchmove', e => {
+  handleMove(e);
+  if (e.cancelable) e.preventDefault();
+}, { passive: false });
+
 document.addEventListener('click', () => { if (gs.phase === 'playing' || gs.ball.attached) launchBall(); });
+document.addEventListener('touchstart', e => {
+  if (gs.phase === 'playing' || gs.ball.attached) launchBall();
+});
+
 document.addEventListener('keydown', e => {
   if (e.code === 'Space') { e.preventDefault(); launchBall(); }
 });
@@ -1277,7 +1348,13 @@ function updateLives() {
 
 function updateLevelBar() {
   const pct = gs.totalBricks > 0 ? (gs.brokenBricks / gs.totalBricks * 100) : 0;
-  document.getElementById('level-bar-fill').style.height = pct + '%';
+  if (window.innerWidth <= 768) {
+    document.getElementById('level-bar-fill').style.width = pct + '%';
+    document.getElementById('level-bar-fill').style.height = '100%';
+  } else {
+    document.getElementById('level-bar-fill').style.height = pct + '%';
+    document.getElementById('level-bar-fill').style.width = '100%';
+  }
 }
 
 // ===================== LOOP =====================
