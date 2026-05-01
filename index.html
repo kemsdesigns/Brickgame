@@ -83,6 +83,7 @@ html, body {
   position: relative;
   z-index: 10;
   height: 100vh;
+  height: 100dvh;
   display: flex;
   align-items: stretch;
 }
@@ -872,17 +873,34 @@ function initGame() {
     level: 1,
     lives: 3,
     multiplier: 1,
+    currentSpeed: W * 0.018, // Persistent speed tracker
     paddle: { x: W / 2, vx: 0 },
-    ball: { x: W / 2, y: PADDLE_Y - BALL_R - 2, vx: 0, vy: 0, attached: true },
+    balls: [], // Array for multi-ball support
     bricks: [],
     totalBricks: 0,
     brokenBricks: 0,
     animFrame: null,
   };
+  addBallsForLevel();
   buildBricks();
   updateUI();
   updateLives();
   updateLevelBar();
+}
+
+function addBallsForLevel() {
+  const count = gs.level === 1 ? 1 : (gs.level - 1) * 3;
+  gs.balls = [];
+  for (let i = 0; i < count; i++) {
+    gs.balls.push({ 
+      x: W / 2, 
+      y: PADDLE_Y - BALL_R - 2, 
+      vx: 0, 
+      vy: 0, 
+      attached: true,
+      id: Math.random()
+    });
+  }
 }
 
 function buildBricks() {
@@ -909,15 +927,20 @@ function buildBricks() {
 }
 
 function launchBall() {
-  if (!gs.ball.attached) return;
-  const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.8;
-  // Speed relative to canvas width for consistency across devices
-  const speed = (W * 0.014) + gs.level * (W * 0.002); 
-  gs.ball.vx = Math.cos(angle) * speed;
-  gs.ball.vy = Math.sin(angle) * speed;
-  gs.ball.attached = false;
-  soundLaunch();
-  gs.phase = 'playing';
+  let launched = false;
+  gs.balls.forEach(ball => {
+    if (!ball.attached) return;
+    const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.0;
+    const speed = gs.currentSpeed;
+    ball.vx = Math.cos(angle) * speed;
+    ball.vy = Math.sin(angle) * speed;
+    ball.attached = false;
+    launched = true;
+  });
+  if (launched) {
+    soundLaunch();
+    gs.phase = 'playing';
+  }
 }
 
 // ===================== UPDATE =====================
@@ -949,84 +972,92 @@ function update() {
   gs.paddle.x += (mouseX - gs.paddle.x) * 0.32;
   gs.paddle.x = Math.max(PADDLE_W / 2, Math.min(W - PADDLE_W / 2, gs.paddle.x));
 
-  // Ball attached to paddle
-  if (gs.ball.attached) {
-    gs.ball.x = gs.paddle.x;
-    gs.ball.y = PADDLE_Y - BALL_R - 2;
-    return;
-  }
+  const maxSpd = (W * 0.04) + gs.level * (W * 0.005);
 
-  const spd = Math.hypot(gs.ball.vx, gs.ball.vy);
-  const maxSpd = (W * 0.035) + gs.level * (W * 0.004); // Relative max speed
-  if (spd > maxSpd) {
-    gs.ball.vx *= maxSpd / spd;
-    gs.ball.vy *= maxSpd / spd;
-  }
+  for (let i = gs.balls.length - 1; i >= 0; i--) {
+    const ball = gs.balls[i];
 
-  gs.ball.x += gs.ball.vx;
-  gs.ball.y += gs.ball.vy;
+    // Ball attached to paddle
+    if (ball.attached) {
+      ball.x = gs.paddle.x;
+      ball.y = PADDLE_Y - BALL_R - 2;
+      continue;
+    }
 
-  // Wall collisions
-  if (gs.ball.x - BALL_R < 0) {
-    gs.ball.x = BALL_R;
-    gs.ball.vx = Math.abs(gs.ball.vx);
-    soundWall();
-  }
-  if (gs.ball.x + BALL_R > W) {
-    gs.ball.x = W - BALL_R;
-    gs.ball.vx = -Math.abs(gs.ball.vx);
-    soundWall();
-  }
-  if (gs.ball.y - BALL_R < 0) {
-    gs.ball.y = BALL_R;
-    gs.ball.vy = Math.abs(gs.ball.vy);
-    soundWall();
-  }
+    const spd = Math.hypot(ball.vx, ball.vy);
+    if (spd > maxSpd) {
+      ball.vx *= maxSpd / spd;
+      ball.vy *= maxSpd / spd;
+    }
 
-  // Paddle collision
-  const px = gs.paddle.x, py = PADDLE_Y;
-  const pw2 = PADDLE_W / 2;
-  if (gs.ball.vy > 0 &&
-      gs.ball.y + BALL_R >= py &&
-      gs.ball.y + BALL_R <= py + PADDLE_H + 6 &&
-      gs.ball.x >= px - pw2 - BALL_R &&
-      gs.ball.x <= px + pw2 + BALL_R) {
-    const rel = (gs.ball.x - px) / pw2; // -1 to 1
-    const angle = rel * (Math.PI / 3);
-    const spd2 = Math.hypot(gs.ball.vx, gs.ball.vy);
-    gs.ball.vx = Math.sin(angle) * spd2;
-    gs.ball.vy = -Math.abs(Math.cos(angle) * spd2);
-    gs.ball.y = py - BALL_R - 1;
-    gs.multiplier = 1;
-    soundPaddle((rel + 1) / 2);
-    updateUI();
-  }
+    ball.x += ball.vx;
+    ball.y += ball.vy;
 
-  // Ball lost
-  if (gs.ball.y - BALL_R > H + 20) {
-    loseLife();
-    return;
-  }
+    // Wall collisions
+    if (ball.x - BALL_R < 0) {
+      ball.x = BALL_R;
+      ball.vx = Math.abs(ball.vx);
+      soundWall();
+    }
+    if (ball.x + BALL_R > W) {
+      ball.x = W - BALL_R;
+      ball.vx = -Math.abs(ball.vx);
+      soundWall();
+    }
+    if (ball.y - BALL_R < 0) {
+      ball.y = BALL_R;
+      ball.vy = Math.abs(ball.vy);
+      soundWall();
+    }
 
-  // Brick collisions
-  for (const b of gs.bricks) {
-    if (!b.alive) continue;
-    const bx = b.x, by = b.y, bw = BRICK_W, bh = BRICK_H;
-    const closestX = Math.max(bx, Math.min(gs.ball.x, bx + bw));
-    const closestY = Math.max(by, Math.min(gs.ball.y, by + bh));
-    const dx = gs.ball.x - closestX;
-    const dy = gs.ball.y - closestY;
-    if (dx * dx + dy * dy < BALL_R * BALL_R) {
-      // Determine bounce axis
-      const overlapX = Math.min(gs.ball.x - bx, bx + bw - gs.ball.x);
-      const overlapY = Math.min(gs.ball.y - by, by + bh - gs.ball.y);
-      if (overlapX < overlapY) {
-        gs.ball.vx *= -1;
-      } else {
-        gs.ball.vy *= -1;
+    // Paddle collision
+    const px = gs.paddle.x, py = PADDLE_Y;
+    const pw2 = PADDLE_W / 2;
+    if (ball.vy > 0 &&
+        ball.y + BALL_R >= py &&
+        ball.y + BALL_R <= py + PADDLE_H + 6 &&
+        ball.x >= px - pw2 - BALL_R &&
+        ball.x <= px + pw2 + BALL_R) {
+      const rel = (ball.x - px) / pw2; 
+      const angle = rel * (Math.PI / 3);
+      const spd2 = Math.hypot(ball.vx, ball.vy);
+      ball.vx = Math.sin(angle) * spd2;
+      ball.vy = -Math.abs(Math.cos(angle) * spd2);
+      ball.y = py - BALL_R - 1;
+      gs.multiplier = 1;
+      soundPaddle((rel + 1) / 2);
+      updateUI();
+    }
+
+    // Ball lost
+    if (ball.y - BALL_R > H + 20) {
+      gs.balls.splice(i, 1);
+      if (gs.balls.length === 0) {
+        loseLife();
+        return;
       }
-      hitBrick(b);
-      break;
+      continue;
+    }
+
+    // Brick collisions
+    for (const b of gs.bricks) {
+      if (!b.alive) continue;
+      const bx = b.x, by = b.y, bw = BRICK_W, bh = BRICK_H;
+      const closestX = Math.max(bx, Math.min(ball.x, bx + bw));
+      const closestY = Math.max(by, Math.min(ball.y, by + bh));
+      const dx = ball.x - closestX;
+      const dy = ball.y - closestY;
+      if (dx * dx + dy * dy < BALL_R * BALL_R) {
+        const overlapX = Math.min(ball.x - bx, bx + bw - ball.x);
+        const overlapY = Math.min(ball.y - by, by + bh - ball.y);
+        if (overlapX < overlapY) {
+          ball.vx *= -1;
+        } else {
+          ball.vy *= -1;
+        }
+        hitBrick(b);
+        break;
+      }
     }
   }
 
@@ -1059,8 +1090,12 @@ function hitBrick(b) {
   }
   // Build momentum: increase ball speed slightly per hit
   const speedBoost = 1.012;
-  gs.ball.vx *= speedBoost;
-  gs.ball.vy *= speedBoost;
+  gs.currentSpeed *= speedBoost;
+  // Apply speed boost to all active balls
+  gs.balls.forEach(ball => {
+    ball.vx *= speedBoost;
+    ball.vy *= speedBoost;
+  });
   updateUI();
 }
 
@@ -1074,11 +1109,7 @@ function loseLife() {
   if (gs.lives <= 0) {
     gameOver();
   } else {
-    // Reset ball
-    gs.ball.attached = true;
-    gs.ball.vx = 0; gs.ball.vy = 0;
-    gs.ball.x = gs.paddle.x;
-    gs.ball.y = PADDLE_Y - BALL_R - 2;
+    addBallsForLevel();
     gs.phase = 'playing';
   }
 }
@@ -1109,12 +1140,11 @@ function nextLevel() {
   document.getElementById('levelclear-overlay').classList.add('hidden');
   gs.level++;
   buildBricks();
-  gs.ball.attached = true;
-  gs.ball.vx = 0; gs.ball.vy = 0;
-  gs.ball.x = gs.paddle.x;
-  gs.ball.y = PADDLE_Y - BALL_R - 2;
+  addBallsForLevel();
   gs.phase = 'playing';
   gs.multiplier = 1;
+  // Subtle speed increase for the new level
+  gs.currentSpeed *= 1.05;
   updateUI();
   updateLives();
   updateLevelBar();
@@ -1161,40 +1191,42 @@ function drawPaddle() {
 }
 
 function drawBall() {
-  const bx = gs.ball.x, by = gs.ball.y;
-  ctx2.save();
+  gs.balls.forEach(ball => {
+    const bx = ball.x, by = ball.y;
+    ctx2.save();
 
-  // Trail if moving
-  if (!gs.ball.attached) {
-    const speed = Math.hypot(gs.ball.vx, gs.ball.vy);
-    const trailLen = Math.min(speed * 1.5, 18);
-    const tx = bx - (gs.ball.vx / speed) * trailLen;
-    const ty = by - (gs.ball.vy / speed) * trailLen;
-    const trailGrad = ctx2.createLinearGradient(tx, ty, bx, by);
-    trailGrad.addColorStop(0, 'rgba(255,255,100,0)');
-    trailGrad.addColorStop(1, 'rgba(255,255,100,0.5)');
-    ctx2.strokeStyle = trailGrad;
-    ctx2.lineWidth = BALL_R * 1.2;
-    ctx2.lineCap = 'round';
+    // Trail if moving
+    if (!ball.attached) {
+      const speed = Math.hypot(ball.vx, ball.vy);
+      const trailLen = Math.min(speed * 1.5, 18);
+      const tx = bx - (ball.vx / speed) * trailLen;
+      const ty = by - (ball.vy / speed) * trailLen;
+      const trailGrad = ctx2.createLinearGradient(tx, ty, bx, by);
+      trailGrad.addColorStop(0, 'rgba(255,255,100,0)');
+      trailGrad.addColorStop(1, 'rgba(255,255,100,0.5)');
+      ctx2.strokeStyle = trailGrad;
+      ctx2.lineWidth = BALL_R * 1.2;
+      ctx2.lineCap = 'round';
+      ctx2.beginPath();
+      ctx2.moveTo(tx, ty);
+      ctx2.lineTo(bx, by);
+      ctx2.stroke();
+    }
+
+    // Glow ring
+    ctx2.shadowColor = '#ffffaa';
+    ctx2.shadowBlur = 24;
+    const radGrad = ctx2.createRadialGradient(bx - BALL_R * 0.3, by - BALL_R * 0.3, 0, bx, by, BALL_R);
+    radGrad.addColorStop(0, '#ffffff');
+    radGrad.addColorStop(0.5, '#ffffcc');
+    radGrad.addColorStop(1, '#ffcc00');
+    ctx2.fillStyle = radGrad;
     ctx2.beginPath();
-    ctx2.moveTo(tx, ty);
-    ctx2.lineTo(bx, by);
-    ctx2.stroke();
-  }
+    ctx2.arc(bx, by, BALL_R, 0, Math.PI * 2);
+    ctx2.fill();
 
-  // Glow ring
-  ctx2.shadowColor = '#ffffaa';
-  ctx2.shadowBlur = 24;
-  const radGrad = ctx2.createRadialGradient(bx - BALL_R * 0.3, by - BALL_R * 0.3, 0, bx, by, BALL_R);
-  radGrad.addColorStop(0, '#ffffff');
-  radGrad.addColorStop(0.5, '#ffffcc');
-  radGrad.addColorStop(1, '#ffcc00');
-  ctx2.fillStyle = radGrad;
-  ctx2.beginPath();
-  ctx2.arc(bx, by, BALL_R, 0, Math.PI * 2);
-  ctx2.fill();
-
-  ctx2.restore();
+    ctx2.restore();
+  });
 }
 
 function drawBricks() {
@@ -1269,7 +1301,8 @@ function drawBackground() {
 }
 
 function drawIdleText() {
-  if (gs.ball.attached && gs.phase === 'playing') {
+  const attached = gs.balls.some(b => b.attached);
+  if (attached && gs.phase === 'playing') {
     ctx2.save();
     ctx2.font = `${Math.floor(H * 0.022)}px 'Rajdhani', sans-serif`;
     ctx2.fillStyle = 'rgba(0,255,204,0.4)';
