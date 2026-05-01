@@ -875,6 +875,9 @@ function initGame() {
   gs = {
     phase: 'idle', // idle, playing, dead, levelclear, gameover
     score: 0,
+    level: 1,
+    lives: 3,
+    multiplier: 1,
     currentSpeed: W * 0.018,
     paddle: { x: W / 2, vx: 0 },
     balls: [],
