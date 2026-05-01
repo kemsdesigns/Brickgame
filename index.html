@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOIDBREAK</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #02030a;
+  --void: #060810;
+  --plasma: #00ffcc;
+  --fire: #ff6b35;
+  --ice: #00b4ff;
+  --gold: #ffd700;
+  --dim: #1a2040;
+  --text: #8899bb;
+  --white: #e8f0ff;
+  --glow-plasma: 0 0 15px rgba(0,255,204,0.7), 0 0 40px rgba(0,255,204,0.3);
+  --glow-fire: 0 0 15px rgba(255,107,53,0.7), 0 0 40px rgba(255,107,53,0.3);
+  --glow-ice: 0 0 15px rgba(0,180,255,0.7), 0 0 40px rgba(0,180,255,0.3);
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Rajdhani', sans-serif;
+  overflow: hidden;
+  user-select: none;
+  cursor: none;
+}
+
+#cursor {
+  position: fixed;
+  width: 8px; height: 8px;
+  background: var(--plasma);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  transform: translate(-50%,-50%);
+  box-shadow: var(--glow-plasma);
+  mix-blend-mode: screen;
+}
+
+/* Stars background */
+#stars {
+  position: fixed; inset: 0;
+  overflow: hidden;
+  z-index: 0;
+}
+.star {
+  position: absolute;
+  background: white;
+  border-radius: 50%;
+  animation: twinkle var(--dur, 3s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+@keyframes twinkle {
+  0%,100% { opacity: var(--min-op, 0.1); }
+  50% { opacity: var(--max-op, 0.6); }
+}
+
+#scanlines {
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 3px,
+    rgba(0,0,0,0.07) 3px, rgba(0,0,0,0.07) 4px
+  );
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* Layout */
+#layout {
+  position: relative;
+  z-index: 10;
+  height: 100vh;
+  display: flex;
+  align-items: stretch;
+}
+
+/* Sidebar */
+#sidebar {
+  width: 180px;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  gap: 32px;
+  border-right: 1px solid rgba(0,255,204,0.06);
+  background: linear-gradient(180deg, rgba(0,255,204,0.02), transparent);
+}
+
+#game-title {
+  font-family: 'Orbitron', monospace;
+  font-weight: 900;
+  font-size: 1.1rem;
+  letter-spacing: 0.4em;
+  color: var(--plasma);
+  text-shadow: var(--glow-plasma);
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+}
+
+.side-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.side-val {
+  font-family: 'Orbitron', monospace;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--white);
+  line-height: 1;
+}
+.side-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.25em;
+  color: #6a80aa;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+#score-val { color: var(--gold); text-shadow: 0 0 15px rgba(255,215,0,0.5); }
+#level-val { color: var(--plasma); text-shadow: var(--glow-plasma); }
+
+/* Lives */
+#lives-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+#lives-dots {
+  display: flex;
+  gap: 6px;
+}
+.life-dot {
+  width: 10px; height: 10px;
+  background: var(--fire);
+  border-radius: 50%;
+  box-shadow: var(--glow-fire);
+  transition: all 0.3s;
+}
+.life-dot.dead {
+  background: var(--dim);
+  box-shadow: none;
+}
+
+/* Divider line */
+.side-divider {
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0,255,204,0.2), transparent);
+}
+
+/* Canvas area */
+#canvas-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+#gameCanvas {
+  display: block;
+  border: 1px solid rgba(0,255,204,0.08);
+  box-shadow:
+    0 0 60px rgba(0,255,204,0.04),
+    inset 0 0 80px rgba(0,0,0,0.8);
+}
+
+/* Right panel */
+#rightbar {
+  width: 140px;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  gap: 20px;
+  border-left: 1px solid rgba(0,255,204,0.06);
+}
+
+/* Multiplier */
+#mult-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+#mult-val {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--ice);
+  text-shadow: var(--glow-ice);
+  transition: transform 0.1s;
+}
+#mult-val.bump { transform: scale(1.4); }
+
+/* Progress bar for level */
+#level-progress-wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+#level-bar-bg {
+  width: 8px;
+  height: 120px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+#level-bar-fill {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: linear-gradient(0deg, var(--plasma), var(--ice));
+  box-shadow: 0 0 12px var(--plasma);
+  transition: height 0.3s ease;
+  height: 0%;
+}
+
+/* Overlay screens */
+.overlay {
+  position: fixed; inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background: rgba(2,3,10,0.92);
+  backdrop-filter: blur(4px);
+  transition: opacity 0.4s;
+}
+.overlay.hidden { opacity: 0; pointer-events: none; }
+
+.overlay-title {
+  font-family: 'Orbitron', monospace;
+  font-weight: 900;
+  font-size: clamp(2.5rem, 8vw, 5rem);
+  letter-spacing: 0.2em;
+  line-height: 1;
+}
+
+.overlay-sub {
+  font-size: 1rem;
+  letter-spacing: 0.25em;
+  color: var(--text);
+}
+
+.big-btn {
+  margin-top: 8px;
+  background: transparent;
+  border: 1px solid var(--plasma);
+  color: var(--plasma);
+  font-family: 'Orbitron', monospace;
+  font-size: 0.9rem;
+  letter-spacing: 0.3em;
+  padding: 14px 40px;
+  cursor: none;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+.big-btn:hover {
+  background: var(--plasma);
+  color: var(--bg);
+  box-shadow: var(--glow-plasma);
+  transform: translateY(-2px);
+}
+.big-btn.fire-btn {
+  border-color: var(--fire);
+  color: var(--fire);
+}
+.big-btn.fire-btn:hover {
+  background: var(--fire);
+  color: var(--bg);
+  box-shadow: var(--glow-fire);
+}
+
+/* Score popup */
+.score-pop {
+  position: fixed;
+  font-family: 'Orbitron', monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  pointer-events: none;
+  z-index: 150;
+  letter-spacing: 0.1em;
+  animation: floatUp 1s ease-out forwards;
+}
+@keyframes floatUp {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-70px) scale(0.7); }
+}
+
+/* Shatter particle */
+.shard {
+  position: fixed;
+  pointer-events: none;
+  z-index: 140;
+  animation: shardFly var(--dur,0.7s) ease-out forwards;
+  border-radius: 1px;
+}
+@keyframes shardFly {
+  0% { opacity: 1; transform: translate(0,0) rotate(0deg) scale(1); }
+  100% { opacity: 0; transform: translate(var(--tx),var(--ty)) rotate(var(--rot)) scale(0); }
+}
+
+/* Flash overlay */
+#flash {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 130;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+#flash.on { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="cursor"></div>
+<div id="stars"></div>
+<div id="scanlines"></div>
+<div id="flash"></div>
+
+<!-- Start Screen -->
+<div class="overlay" id="start-overlay">
+  <div style="font-family:'Rajdhani',sans-serif;font-size:0.7rem;letter-spacing:0.5em;color:var(--text);text-transform:uppercase">sector clearance protocol</div>
+  <div class="overlay-title" style="color:var(--plasma);text-shadow:var(--glow-plasma)">VOID<br><span style="color:var(--fire);text-shadow:var(--glow-fire)">BREAK</span></div>
+  <div class="overlay-sub">destroy the grid. survive the void.</div>
+  <div style="font-size:0.75rem;letter-spacing:0.2em;color:var(--dim);margin-top:4px">mouse to move &nbsp;·&nbsp; click or space to launch</div>
+  <button class="big-btn" id="start-btn">ENGAGE</button>
+</div>
+
+<!-- Level Clear -->
+<div class="overlay hidden" id="levelclear-overlay">
+  <div class="overlay-title" style="color:var(--gold);text-shadow:0 0 30px rgba(255,215,0,0.6)">SECTOR<br>CLEARED</div>
+  <div class="overlay-sub" id="level-clear-sub">sector 1 eliminated</div>
+  <div style="font-family:'Orbitron',monospace;font-size:1.4rem;color:var(--plasma)" id="level-clear-score">+0</div>
+  <button class="big-btn" id="next-btn">NEXT SECTOR</button>
+</div>
+
+<!-- Game Over -->
+<div class="overlay hidden" id="gameover-overlay">
+  <div class="overlay-title" style="color:var(--fire);text-shadow:var(--glow-fire)">SYSTEM<br>COLLAPSE</div>
+  <div class="overlay-sub">the void reclaimed you</div>
+  <div style="font-family:'Orbitron',monospace;font-size:2rem;color:var(--white);margin:8px 0">
+    <span id="final-score">0</span> <span style="font-size:0.8rem;color:var(--text)">pts</span>
+  </div>
+  <div style="display:flex;gap:12px">
+    <button class="big-btn fire-btn" id="retry-btn">RETRY</button>
+  </div>
+</div>
+
+<!-- Main Layout -->
+<div id="layout">
+  <div id="sidebar">
+    <div id="game-title">VOIDBREAK</div>
+    <div class="side-divider"></div>
+    <div class="side-stat">
+      <div class="side-val" id="score-val">0</div>
+      <div class="side-label">Score</div>
+    </div>
+    <div class="side-stat">
+      <div class="side-val" id="level-val">1</div>
+      <div class="side-label">Sector</div>
+    </div>
+    <div class="side-divider"></div>
+    <div class="side-stat lives-display">
+      <div id="lives-dots"></div>
+      <div class="side-label">Lives</div>
+    </div>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="gameCanvas"></canvas>
+  </div>
+
+  <div id="rightbar">
+    <div class="side-divider" style="width:100%"></div>
+    <div id="mult-display">
+      <div class="side-val" id="mult-val">x1</div>
+      <div class="side-label">Multi</div>
+    </div>
+    <div class="side-divider" style="width:100%"></div>
+    <div id="level-progress-wrap">
+      <div id="level-bar-bg">
+        <div id="level-bar-fill"></div>
+      </div>
+      <div class="side-label" style="margin-top:4px">Grid</div>
+    </div>
+    <div class="side-divider" style="width:100%"></div>
+  </div>
+</div>
+
+<script>
+// ===================== STARS =====================
+(function() {
+  const container = document.getElementById('stars');
+  for (let i = 0; i < 120; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const size = Math.random() * 2 + 0.5;
+    s.style.cssText = `
+      width:${size}px; height:${size}px;
+      left:${Math.random()*100}%; top:${Math.random()*100}%;
+      --dur:${2+Math.random()*4}s; --delay:${Math.random()*4}s;
+      --min-op:${0.05+Math.random()*0.1}; --max-op:${0.3+Math.random()*0.5};
+    `;
+    container.appendChild(s);
+  }
+})();
+
+// ===================== CURSOR =====================
+const cursorEl = document.getElementById('cursor');
+document.addEventListener('mousemove', e => {
+  cursorEl.style.left = e.clientX + 'px';
+  cursorEl.style.top = e.clientY + 'px';
+});
+
+// ===================== AUDIO =====================
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let actx = null;
+function getCtx() {
+  if (!actx) actx = new AudioCtx();
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
+
+// Ball hits wall -- heavy metallic clang with reverb tail
+function soundWall() {
+  const ctx = getCtx(), t = ctx.currentTime;
+  // Metallic impact
+  const osc = ctx.createOscillator();
+  const osc2 = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sawtooth';
+  osc2.type = 'square';
+  osc.frequency.setValueAtTime(2200, t);
+  osc.frequency.exponentialRampToValueAtTime(600, t + 0.06);
+  osc2.frequency.setValueAtTime(1100, t);
+  osc2.frequency.exponentialRampToValueAtTime(300, t + 0.08);
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(0.55, t + 0.003);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+  osc.connect(gain); osc2.connect(gain); gain.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.28);
+  osc2.start(t); osc2.stop(t + 0.28);
+  // Sub thud
+  const sub = ctx.createOscillator();
+  const subG = ctx.createGain();
+  sub.type = 'sine';
+  sub.frequency.setValueAtTime(80, t);
+  sub.frequency.exponentialRampToValueAtTime(30, t + 0.1);
+  subG.gain.setValueAtTime(0.5, t);
+  subG.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+  sub.connect(subG); subG.connect(ctx.destination);
+  sub.start(t); sub.stop(t + 0.2);
+}
+
+// Paddle hit -- massive plasma cannon with deep sub kick
+function soundPaddle(xNorm) {
+  const ctx = getCtx(), t = ctx.currentTime;
+  const freq = 100 + xNorm * 80;
+
+  // Main body
+  const osc = ctx.createOscillator();
+  const osc2 = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const filter = ctx.createBiquadFilter();
+  osc.type = 'sawtooth';
+  osc2.type = 'square';
+  osc.frequency.setValueAtTime(freq * 3, t);
+  osc.frequency.exponentialRampToValueAtTime(freq * 0.5, t + 0.18);
+  osc2.frequency.setValueAtTime(freq * 2, t);
+  osc2.frequency.exponentialRampToValueAtTime(freq * 0.8, t + 0.15);
+  filter.type = 'lowpass';
+  filter.frequency.value = 900;
+  filter.Q.value = 4;
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(0.65, t + 0.004);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+  osc.connect(filter); osc2.connect(filter);
+  filter.connect(gain); gain.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.45);
+  osc2.start(t); osc2.stop(t + 0.45);
+
+  // Massive sub kick
+  const sub = ctx.createOscillator();
+  const subG = ctx.createGain();
+  sub.type = 'sine';
+  sub.frequency.setValueAtTime(120, t);
+  sub.frequency.exponentialRampToValueAtTime(28, t + 0.22);
+  subG.gain.setValueAtTime(0.9, t);
+  subG.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+  sub.connect(subG); subG.connect(ctx.destination);
+  sub.start(t); sub.stop(t + 0.35);
+
+  // Plasma crackle noise
+  const bufSize = ctx.sampleRate * 0.06;
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const nf = ctx.createBiquadFilter();
+  nf.type = 'highpass'; nf.frequency.value = 3000;
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.35, t);
+  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+  noise.connect(nf); nf.connect(ng); ng.connect(ctx.destination);
+  noise.start(t); noise.stop(t + 0.07);
+}
+
+// Brick hit -- explosive shatter, pitch varies by row
+function soundBrick(row, totalRows) {
+  const ctx = getCtx(), t = ctx.currentTime;
+  const rowNorm = row / totalRows;
+  const baseFreq = 250 + (1 - rowNorm) * 1600;
+
+  // Main explosive crack
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(baseFreq * 1.5, t);
+  osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.2, t + 0.15);
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(0.7, t + 0.002);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.3);
+
+  // Rich harmonic shimmer -- 5 layers
+  [1.5, 2.1, 3.05, 4.2, 5.8].forEach((ratio, i) => {
+    const h = ctx.createOscillator();
+    const hg = ctx.createGain();
+    h.type = i < 2 ? 'triangle' : 'sine';
+    h.frequency.value = baseFreq * ratio;
+    hg.gain.setValueAtTime(0, t + i * 0.012);
+    hg.gain.linearRampToValueAtTime(0.18 - i * 0.025, t + i * 0.012 + 0.008);
+    hg.gain.exponentialRampToValueAtTime(0.001, t + i * 0.012 + 0.4 - i * 0.05);
+    h.connect(hg); hg.connect(ctx.destination);
+    h.start(t + i * 0.012); h.stop(t + 0.5);
+  });
+
+  // Heavy noise burst
+  const bufSize = ctx.sampleRate * 0.12;
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const noiseFilter = ctx.createBiquadFilter();
+  noiseFilter.type = 'bandpass';
+  noiseFilter.frequency.value = baseFreq * 1.8;
+  noiseFilter.Q.value = 1.5;
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.5, t);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+  noise.connect(noiseFilter); noiseFilter.connect(noiseGain); noiseGain.connect(ctx.destination);
+  noise.start(t); noise.stop(t + 0.14);
+
+  // Sub punch for top rows (heavy bricks)
+  if (row < 3) {
+    const sub = ctx.createOscillator();
+    const subG = ctx.createGain();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(90, t);
+    sub.frequency.exponentialRampToValueAtTime(25, t + 0.18);
+    subG.gain.setValueAtTime(0.6, t);
+    subG.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    sub.connect(subG); subG.connect(ctx.destination);
+    sub.start(t); sub.stop(t + 0.25);
+  }
+}
+
+// Life lost -- cinematic death: wail + explosion + silence
+function soundLifeLost() {
+  const ctx = getCtx(), t = ctx.currentTime;
+
+  // Screaming wail descending fast
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const vib = ctx.createOscillator();
+  const vibGain = ctx.createGain();
+  vib.frequency.value = 10;
+  vibGain.gain.setValueAtTime(80, t);
+  vibGain.gain.exponentialRampToValueAtTime(5, t + 1.5);
+  vib.connect(vibGain); vibGain.connect(osc.frequency);
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(900, t);
+  osc.frequency.exponentialRampToValueAtTime(40, t + 1.5);
+  gain.gain.setValueAtTime(0.8, t);
+  gain.gain.setValueAtTime(0.8, t + 0.8);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 1.8);
+  osc.connect(gain); gain.connect(ctx.destination);
+  vib.start(t); osc.start(t);
+  osc.stop(t + 2.0); vib.stop(t + 2.0);
+
+  // Explosion boom at t=0
+  const boom = ctx.createOscillator();
+  const boomG = ctx.createGain();
+  boom.type = 'sine';
+  boom.frequency.setValueAtTime(150, t);
+  boom.frequency.exponentialRampToValueAtTime(20, t + 0.5);
+  boomG.gain.setValueAtTime(1.0, t);
+  boomG.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+  boom.connect(boomG); boomG.connect(ctx.destination);
+  boom.start(t); boom.stop(t + 0.65);
+
+  // Noise shockwave
+  const bufSize = ctx.sampleRate * 0.3;
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const nf = ctx.createBiquadFilter();
+  nf.type = 'lowpass'; nf.frequency.value = 800;
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.9, t);
+  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+  noise.connect(nf); nf.connect(ng); ng.connect(ctx.destination);
+  noise.start(t); noise.stop(t + 0.35);
+}
+
+// Level clear -- epic orchestral fanfare with bass swell
+function soundLevelClear() {
+  const ctx = getCtx(), t = ctx.currentTime;
+
+  // Rising bass swell
+  const bass = ctx.createOscillator();
+  const bassG = ctx.createGain();
+  bass.type = 'sine';
+  bass.frequency.setValueAtTime(60, t);
+  bass.frequency.exponentialRampToValueAtTime(130, t + 0.5);
+  bassG.gain.setValueAtTime(0.7, t);
+  bassG.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+  bass.connect(bassG); bassG.connect(ctx.destination);
+  bass.start(t); bass.stop(t + 1.3);
+
+  // Main fanfare chord cascade -- louder, more spread
+  const chord = [261, 329, 392, 523, 659, 784, 1047, 1319];
+  chord.forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = i < 3 ? 'triangle' : 'sine';
+    osc.frequency.setValueAtTime(freq * 0.4, t + i * 0.055);
+    osc.frequency.exponentialRampToValueAtTime(freq, t + i * 0.055 + 0.1);
+    gain.gain.setValueAtTime(0, t + i * 0.055);
+    gain.gain.linearRampToValueAtTime(0.3, t + i * 0.055 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.055 + 1.2);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t + i * 0.055); osc.stop(t + i * 0.055 + 1.4);
+  });
+
+  // Cymbal-like noise crash at peak
+  const bufSize = ctx.sampleRate * 0.4;
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const nf = ctx.createBiquadFilter();
+  nf.type = 'highpass'; nf.frequency.value = 6000;
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.5, t + 0.35);
+  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+  noise.connect(nf); nf.connect(ng); ng.connect(ctx.destination);
+  noise.start(t + 0.35); noise.stop(t + 1.0);
+}
+
+// Game over -- catastrophic multi-layer collapse
+function soundGameOver() {
+  const ctx = getCtx(), t = ctx.currentTime;
+
+  // Massive descending chord stabs
+  [500, 380, 250, 150, 80, 40].forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc2.type = 'square';
+    osc.frequency.setValueAtTime(freq * 1.5, t + i * 0.18);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.5, t + i * 0.18 + 0.4);
+    osc2.frequency.setValueAtTime(freq, t + i * 0.18);
+    gain.gain.setValueAtTime(0, t + i * 0.18);
+    gain.gain.linearRampToValueAtTime(0.55, t + i * 0.18 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.18 + 0.7);
+    osc.connect(gain); osc2.connect(gain); gain.connect(ctx.destination);
+    osc.start(t + i * 0.18); osc.stop(t + i * 0.18 + 0.75);
+    osc2.start(t + i * 0.18); osc2.stop(t + i * 0.18 + 0.75);
+  });
+
+  // Sub bass rumble that fades to nothing
+  const sub = ctx.createOscillator();
+  const subG = ctx.createGain();
+  sub.type = 'sine';
+  sub.frequency.setValueAtTime(80, t);
+  sub.frequency.exponentialRampToValueAtTime(15, t + 2.0);
+  subG.gain.setValueAtTime(0.9, t);
+  subG.gain.exponentialRampToValueAtTime(0.001, t + 2.2);
+  sub.connect(subG); subG.connect(ctx.destination);
+  sub.start(t); sub.stop(t + 2.3);
+
+  // Explosion noise at start
+  const bufSize = ctx.sampleRate * 0.5;
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const nf = ctx.createBiquadFilter();
+  nf.type = 'lowpass'; nf.frequency.value = 1200;
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(1.0, t);
+  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+  noise.connect(nf); nf.connect(ng); ng.connect(ctx.destination);
+  noise.start(t); noise.stop(t + 0.55);
+}
+
+// Launch sound -- sharp plasma beam fire
+function soundLaunch() {
+  const ctx = getCtx(), t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const osc2 = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sawtooth';
+  osc2.type = 'sine';
+  osc.frequency.setValueAtTime(150, t);
+  osc.frequency.exponentialRampToValueAtTime(2400, t + 0.18);
+  osc2.frequency.setValueAtTime(300, t);
+  osc2.frequency.exponentialRampToValueAtTime(1800, t + 0.15);
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(0.5, t + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+  osc.connect(gain); osc2.connect(gain); gain.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.32);
+  osc2.start(t); osc2.stop(t + 0.32);
+}
+
+// ===================== GAME =====================
+const canvas = document.getElementById('gameCanvas');
+const ctx2 = canvas.getContext('2d');
+
+const COLS = 12;
+const BRICK_ROWS = 7;
+const BRICK_PAD = 3;
+const BRICK_TOP_OFFSET = 50;
+const PADDLE_H = 10;
+const BALL_R = 7;
+
+// Brick color palette per row -- gradient from deep red to icy blue
+const ROW_COLORS = [
+  { main: '#ff2244', glow: 'rgba(255,34,68,0.8)', score: 100 },
+  { main: '#ff5533', glow: 'rgba(255,85,51,0.7)', score: 80 },
+  { main: '#ff8800', glow: 'rgba(255,136,0,0.7)', score: 60 },
+  { main: '#ffd700', glow: 'rgba(255,215,0,0.6)', score: 50 },
+  { main: '#88ff44', glow: 'rgba(136,255,68,0.6)', score: 40 },
+  { main: '#00e5ff', glow: 'rgba(0,229,255,0.7)', score: 30 },
+  { main: '#aa77ff', glow: 'rgba(170,119,255,0.7)', score: 20 },
+];
+
+let W, H, BRICK_W, BRICK_H, PADDLE_W, PADDLE_Y;
+
+function resize() {
+  const wrap = document.getElementById('canvas-wrap');
+  const maxW = wrap.clientWidth - 40;
+  const maxH = wrap.clientHeight - 40;
+  const aspectW = Math.min(maxW, maxH * 0.7);
+  W = Math.floor(aspectW / 2) * 2;
+  H = Math.floor(W / 0.65);
+  if (H > maxH) { H = maxH; W = Math.floor(H * 0.65 / 2) * 2; }
+  canvas.width = W;
+  canvas.height = H;
+  BRICK_W = Math.floor((W - (COLS + 1) * BRICK_PAD) / COLS);
+  BRICK_H = Math.floor(BRICK_W * 0.38);
+  PADDLE_W = Math.floor(W * 0.18);
+  PADDLE_Y = H - 50;
+}
+
+// Game state
+let gs = {};
+
+function initGame() {
+  resize();
+  gs = {
+    phase: 'idle', // idle, playing, dead, levelclear, gameover
+    score: 0,
+    level: 1,
+    lives: 3,
+    multiplier: 1,
+    paddle: { x: W / 2, vx: 0 },
+    ball: { x: W / 2, y: PADDLE_Y - BALL_R - 2, vx: 0, vy: 0, attached: true },
+    bricks: [],
+    totalBricks: 0,
+    brokenBricks: 0,
+    animFrame: null,
+  };
+  buildBricks();
+  updateUI();
+  updateLives();
+  updateLevelBar();
+}
+
+function buildBricks() {
+  gs.bricks = [];
+  const levelMod = gs.level - 1;
+  for (let row = 0; row < BRICK_ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      // Some bricks missing at higher levels for pattern variety
+      const skip = levelMod > 0 && (
+        (row === 2 && col % 4 === 0) ||
+        (row === 4 && col % 3 === 2) ||
+        (levelMod >= 2 && row === 1 && col % 5 === 3)
+      );
+      if (skip) continue;
+      const x = BRICK_PAD + col * (BRICK_W + BRICK_PAD);
+      const y = BRICK_TOP_OFFSET + row * (BRICK_H + BRICK_PAD);
+      // Some bricks need 2 hits at higher levels
+      const hp = (levelMod >= 1 && row < 2 && col % 3 === 0) ? 2 : 1;
+      gs.bricks.push({ row, col, x, y, hp, maxHp: hp, alive: true, flashTimer: 0 });
+    }
+  }
+  gs.totalBricks = gs.bricks.length;
+  gs.brokenBricks = 0;
+}
+
+function launchBall() {
+  if (!gs.ball.attached) return;
+  const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.8;
+  const speed = 14 + gs.level * 1.8;
+  gs.ball.vx = Math.cos(angle) * speed;
+  gs.ball.vy = Math.sin(angle) * speed;
+  gs.ball.attached = false;
+  soundLaunch();
+  gs.phase = 'playing';
+}
+
+// ===================== UPDATE =====================
+let mouseX = W / 2;
+document.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = e.clientX - rect.left;
+});
+document.addEventListener('click', () => { if (gs.phase === 'playing' || gs.ball.attached) launchBall(); });
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); launchBall(); }
+});
+
+function update() {
+  if (gs.phase !== 'playing') return;
+
+  // Paddle
+  gs.paddle.x += (mouseX - gs.paddle.x) * 0.32;
+  gs.paddle.x = Math.max(PADDLE_W / 2, Math.min(W - PADDLE_W / 2, gs.paddle.x));
+
+  // Ball attached to paddle
+  if (gs.ball.attached) {
+    gs.ball.x = gs.paddle.x;
+    gs.ball.y = PADDLE_Y - BALL_R - 2;
+    return;
+  }
+
+  const spd = Math.hypot(gs.ball.vx, gs.ball.vy);
+  const maxSpd = 28 + gs.level * 2.5;
+  if (spd > maxSpd) {
+    gs.ball.vx *= maxSpd / spd;
+    gs.ball.vy *= maxSpd / spd;
+  }
+
+  gs.ball.x += gs.ball.vx;
+  gs.ball.y += gs.ball.vy;
+
+  // Wall collisions
+  if (gs.ball.x - BALL_R < 0) {
+    gs.ball.x = BALL_R;
+    gs.ball.vx = Math.abs(gs.ball.vx);
+    soundWall();
+  }
+  if (gs.ball.x + BALL_R > W) {
+    gs.ball.x = W - BALL_R;
+    gs.ball.vx = -Math.abs(gs.ball.vx);
+    soundWall();
+  }
+  if (gs.ball.y - BALL_R < 0) {
+    gs.ball.y = BALL_R;
+    gs.ball.vy = Math.abs(gs.ball.vy);
+    soundWall();
+  }
+
+  // Paddle collision
+  const px = gs.paddle.x, py = PADDLE_Y;
+  const pw2 = PADDLE_W / 2;
+  if (gs.ball.vy > 0 &&
+      gs.ball.y + BALL_R >= py &&
+      gs.ball.y + BALL_R <= py + PADDLE_H + 6 &&
+      gs.ball.x >= px - pw2 - BALL_R &&
+      gs.ball.x <= px + pw2 + BALL_R) {
+    const rel = (gs.ball.x - px) / pw2; // -1 to 1
+    const angle = rel * (Math.PI / 3);
+    const spd2 = Math.hypot(gs.ball.vx, gs.ball.vy);
+    gs.ball.vx = Math.sin(angle) * spd2;
+    gs.ball.vy = -Math.abs(Math.cos(angle) * spd2);
+    gs.ball.y = py - BALL_R - 1;
+    gs.multiplier = 1;
+    soundPaddle((rel + 1) / 2);
+    updateUI();
+  }
+
+  // Ball lost
+  if (gs.ball.y - BALL_R > H + 20) {
+    loseLife();
+    return;
+  }
+
+  // Brick collisions
+  for (const b of gs.bricks) {
+    if (!b.alive) continue;
+    const bx = b.x, by = b.y, bw = BRICK_W, bh = BRICK_H;
+    const closestX = Math.max(bx, Math.min(gs.ball.x, bx + bw));
+    const closestY = Math.max(by, Math.min(gs.ball.y, by + bh));
+    const dx = gs.ball.x - closestX;
+    const dy = gs.ball.y - closestY;
+    if (dx * dx + dy * dy < BALL_R * BALL_R) {
+      // Determine bounce axis
+      const overlapX = Math.min(gs.ball.x - bx, bx + bw - gs.ball.x);
+      const overlapY = Math.min(gs.ball.y - by, by + bh - gs.ball.y);
+      if (overlapX < overlapY) {
+        gs.ball.vx *= -1;
+      } else {
+        gs.ball.vy *= -1;
+      }
+      hitBrick(b);
+      break;
+    }
+  }
+
+  // Decrement flash timers
+  gs.bricks.forEach(b => { if (b.flashTimer > 0) b.flashTimer--; });
+}
+
+function hitBrick(b) {
+  b.hp--;
+  soundBrick(b.row, BRICK_ROWS);
+  if (b.hp <= 0) {
+    b.alive = false;
+    gs.brokenBricks++;
+    gs.multiplier = Math.min(gs.multiplier + 1, 16);
+    const pts = ROW_COLORS[b.row].score * gs.multiplier;
+    gs.score += pts;
+    const rect = canvas.getBoundingClientRect();
+    const sx = rect.left + b.x + BRICK_W / 2;
+    const sy = rect.top + b.y + BRICK_H / 2;
+    spawnShatter(sx, sy, ROW_COLORS[b.row].main);
+    spawnScorePop(sx, sy, '+' + pts, ROW_COLORS[b.row].main);
+    updateUI();
+    updateLevelBar();
+    flashScreen(ROW_COLORS[b.row].main, 0.08);
+    if (gs.brokenBricks >= gs.totalBricks) {
+      levelClear();
+    }
+  } else {
+    b.flashTimer = 6;
+  }
+  updateUI();
+}
+
+function loseLife() {
+  gs.lives--;
+  gs.multiplier = 1;
+  soundLifeLost();
+  flashScreen('#ff3b5c', 0.25);
+  updateLives();
+  updateUI();
+  if (gs.lives <= 0) {
+    gameOver();
+  } else {
+    // Reset ball
+    gs.ball.attached = true;
+    gs.ball.vx = 0; gs.ball.vy = 0;
+    gs.ball.x = gs.paddle.x;
+    gs.ball.y = PADDLE_Y - BALL_R - 2;
+    gs.phase = 'playing';
+  }
+}
+
+function levelClear() {
+  gs.phase = 'levelclear';
+  const bonus = gs.lives * 500 + gs.level * 200;
+  gs.score += bonus;
+  soundLevelClear();
+  document.getElementById('level-clear-sub').textContent = `sector ${gs.level} eliminated`;
+  document.getElementById('level-clear-score').textContent = `+${bonus} clear bonus`;
+  updateUI();
+  setTimeout(() => {
+    document.getElementById('levelclear-overlay').classList.remove('hidden');
+  }, 400);
+}
+
+function gameOver() {
+  gs.phase = 'gameover';
+  soundGameOver();
+  document.getElementById('final-score').textContent = gs.score.toLocaleString();
+  setTimeout(() => {
+    document.getElementById('gameover-overlay').classList.remove('hidden');
+  }, 600);
+}
+
+function nextLevel() {
+  document.getElementById('levelclear-overlay').classList.add('hidden');
+  gs.level++;
+  buildBricks();
+  gs.ball.attached = true;
+  gs.ball.vx = 0; gs.ball.vy = 0;
+  gs.ball.x = gs.paddle.x;
+  gs.ball.y = PADDLE_Y - BALL_R - 2;
+  gs.phase = 'playing';
+  gs.multiplier = 1;
+  updateUI();
+  updateLives();
+  updateLevelBar();
+}
+
+// ===================== DRAW =====================
+function drawPaddle() {
+  const px = gs.paddle.x, py = PADDLE_Y;
+  const pw = PADDLE_W, ph = PADDLE_H;
+
+  // Glow
+  ctx2.save();
+  ctx2.shadowColor = '#00ffcc';
+  ctx2.shadowBlur = 20;
+
+  // Main paddle bar
+  const grad = ctx2.createLinearGradient(px - pw/2, py, px + pw/2, py);
+  grad.addColorStop(0, 'rgba(0,255,204,0.1)');
+  grad.addColorStop(0.3, '#00ffcc');
+  grad.addColorStop(0.7, '#00ffcc');
+  grad.addColorStop(1, 'rgba(0,255,204,0.1)');
+  ctx2.fillStyle = grad;
+  ctx2.beginPath();
+  ctx2.roundRect(px - pw/2, py, pw, ph, 3);
+  ctx2.fill();
+
+  // Top edge highlight
+  ctx2.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx2.lineWidth = 1;
+  ctx2.beginPath();
+  ctx2.moveTo(px - pw/2 + 4, py + 1);
+  ctx2.lineTo(px + pw/2 - 4, py + 1);
+  ctx2.stroke();
+
+  // Center pip
+  ctx2.fillStyle = '#fff';
+  ctx2.shadowColor = '#fff';
+  ctx2.shadowBlur = 10;
+  ctx2.beginPath();
+  ctx2.arc(px, py + ph/2, 2, 0, Math.PI * 2);
+  ctx2.fill();
+
+  ctx2.restore();
+}
+
+function drawBall() {
+  const bx = gs.ball.x, by = gs.ball.y;
+  ctx2.save();
+
+  // Trail if moving
+  if (!gs.ball.attached) {
+    const speed = Math.hypot(gs.ball.vx, gs.ball.vy);
+    const trailLen = Math.min(speed * 1.5, 18);
+    const tx = bx - (gs.ball.vx / speed) * trailLen;
+    const ty = by - (gs.ball.vy / speed) * trailLen;
+    const trailGrad = ctx2.createLinearGradient(tx, ty, bx, by);
+    trailGrad.addColorStop(0, 'rgba(255,255,100,0)');
+    trailGrad.addColorStop(1, 'rgba(255,255,100,0.5)');
+    ctx2.strokeStyle = trailGrad;
+    ctx2.lineWidth = BALL_R * 1.2;
+    ctx2.lineCap = 'round';
+    ctx2.beginPath();
+    ctx2.moveTo(tx, ty);
+    ctx2.lineTo(bx, by);
+    ctx2.stroke();
+  }
+
+  // Glow ring
+  ctx2.shadowColor = '#ffffaa';
+  ctx2.shadowBlur = 24;
+  const radGrad = ctx2.createRadialGradient(bx - BALL_R * 0.3, by - BALL_R * 0.3, 0, bx, by, BALL_R);
+  radGrad.addColorStop(0, '#ffffff');
+  radGrad.addColorStop(0.5, '#ffffcc');
+  radGrad.addColorStop(1, '#ffcc00');
+  ctx2.fillStyle = radGrad;
+  ctx2.beginPath();
+  ctx2.arc(bx, by, BALL_R, 0, Math.PI * 2);
+  ctx2.fill();
+
+  ctx2.restore();
+}
+
+function drawBricks() {
+  for (const b of gs.bricks) {
+    if (!b.alive) continue;
+    const col = ROW_COLORS[b.row];
+    const x = b.x, y = b.y, w = BRICK_W, h = BRICK_H;
+    const flash = b.flashTimer > 0;
+    const dmg = b.maxHp > 1 ? (b.hp / b.maxHp) : 1;
+
+    ctx2.save();
+
+    if (flash) {
+      ctx2.shadowColor = '#ffffff';
+      ctx2.shadowBlur = 25;
+    } else {
+      ctx2.shadowColor = col.glow;
+      ctx2.shadowBlur = 10;
+    }
+
+    // Brick body
+    const grad = ctx2.createLinearGradient(x, y, x, y + h);
+    const alpha = flash ? 1 : (0.5 + dmg * 0.5);
+    grad.addColorStop(0, flash ? '#ffffff' : col.main);
+    grad.addColorStop(1, flash ? 'rgba(255,255,255,0.6)' : col.main + '88');
+    ctx2.fillStyle = grad;
+    ctx2.globalAlpha = alpha;
+    ctx2.beginPath();
+    ctx2.roundRect(x, y, w, h, 2);
+    ctx2.fill();
+
+    // Top highlight
+    ctx2.globalAlpha = alpha * 0.5;
+    ctx2.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx2.beginPath();
+    ctx2.roundRect(x + 2, y + 1, w - 4, 3, 1);
+    ctx2.fill();
+
+    // Crack overlay for damaged bricks
+    if (b.maxHp > 1 && b.hp < b.maxHp) {
+      ctx2.globalAlpha = 0.6;
+      ctx2.strokeStyle = 'rgba(0,0,0,0.7)';
+      ctx2.lineWidth = 1.5;
+      ctx2.beginPath();
+      ctx2.moveTo(x + w * 0.3, y + 2);
+      ctx2.lineTo(x + w * 0.5, y + h * 0.6);
+      ctx2.lineTo(x + w * 0.7, y + h - 2);
+      ctx2.stroke();
+    }
+
+    ctx2.restore();
+  }
+}
+
+function drawBackground() {
+  ctx2.clearRect(0, 0, W, H);
+
+  // Deep space bg
+  ctx2.fillStyle = 'rgba(2,3,10,0.85)';
+  ctx2.fillRect(0, 0, W, H);
+
+  // Subtle grid
+  ctx2.strokeStyle = 'rgba(0,229,255,0.025)';
+  ctx2.lineWidth = 0.5;
+  const gridSize = 32;
+  for (let x = 0; x <= W; x += gridSize) {
+    ctx2.beginPath(); ctx2.moveTo(x, 0); ctx2.lineTo(x, H); ctx2.stroke();
+  }
+  for (let y = 0; y <= H; y += gridSize) {
+    ctx2.beginPath(); ctx2.moveTo(0, y); ctx2.lineTo(W, y); ctx2.stroke();
+  }
+}
+
+function drawIdleText() {
+  if (gs.ball.attached && gs.phase === 'playing') {
+    ctx2.save();
+    ctx2.font = `${Math.floor(H * 0.022)}px 'Rajdhani', sans-serif`;
+    ctx2.fillStyle = 'rgba(0,255,204,0.4)';
+    ctx2.textAlign = 'center';
+    ctx2.fillText('CLICK OR SPACE TO LAUNCH', W / 2, PADDLE_Y - 24);
+    ctx2.restore();
+  }
+}
+
+function render() {
+  drawBackground();
+  drawBricks();
+  drawPaddle();
+  drawBall();
+  drawIdleText();
+}
+
+// ===================== EFFECTS =====================
+function flashScreen(color, alpha) {
+  const f = document.getElementById('flash');
+  f.style.background = color;
+  f.style.opacity = alpha;
+  f.classList.add('on');
+  setTimeout(() => { f.style.opacity = 0; }, 80);
+  setTimeout(() => f.classList.remove('on'), 200);
+}
+
+function spawnShatter(x, y, color) {
+  const count = 8 + Math.floor(Math.random() * 6);
+  for (let i = 0; i < count; i++) {
+    const div = document.createElement('div');
+    div.className = 'shard';
+    const sz = 3 + Math.random() * 7;
+    const angle = (i / count) * Math.PI * 2 + Math.random() * 0.5;
+    const dist = 30 + Math.random() * 60;
+    div.style.cssText = `
+      left:${x}px; top:${y}px;
+      width:${sz}px; height:${sz * 0.4}px;
+      background:${color};
+      box-shadow:0 0 6px ${color};
+      --tx:${Math.cos(angle) * dist}px;
+      --ty:${Math.sin(angle) * dist}px;
+      --rot:${Math.random() * 360}deg;
+      --dur:${0.4 + Math.random() * 0.4}s;
+    `;
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 900);
+  }
+}
+
+function spawnScorePop(x, y, text, color) {
+  const div = document.createElement('div');
+  div.className = 'score-pop';
+  div.textContent = text;
+  div.style.cssText = `left:${x}px;top:${y}px;color:${color};text-shadow:0 0 10px ${color};`;
+  document.body.appendChild(div);
+  setTimeout(() => div.remove(), 1100);
+}
+
+// ===================== UI =====================
+function updateUI() {
+  document.getElementById('score-val').textContent = gs.score.toLocaleString();
+  document.getElementById('level-val').textContent = gs.level;
+  const mEl = document.getElementById('mult-val');
+  const newMult = 'x' + gs.multiplier;
+  if (mEl.textContent !== newMult) {
+    mEl.textContent = newMult;
+    mEl.classList.add('bump');
+    setTimeout(() => mEl.classList.remove('bump'), 150);
+  }
+}
+
+function updateLives() {
+  const container = document.getElementById('lives-dots');
+  container.innerHTML = '';
+  for (let i = 0; i < 3; i++) {
+    const d = document.createElement('div');
+    d.className = 'life-dot' + (i >= gs.lives ? ' dead' : '');
+    container.appendChild(d);
+  }
+}
+
+function updateLevelBar() {
+  const pct = gs.totalBricks > 0 ? (gs.brokenBricks / gs.totalBricks * 100) : 0;
+  document.getElementById('level-bar-fill').style.height = pct + '%';
+}
+
+// ===================== LOOP =====================
+let lastTime = 0;
+function loop(ts) {
+  const dt = ts - lastTime;
+  lastTime = ts;
+  update();
+  render();
+  gs.animFrame = requestAnimationFrame(loop);
+}
+
+// ===================== BUTTONS =====================
+document.getElementById('start-btn').addEventListener('click', () => {
+  getCtx();
+  document.getElementById('start-overlay').classList.add('hidden');
+  gs.phase = 'playing';
+  requestAnimationFrame(loop);
+});
+document.getElementById('next-btn').addEventListener('click', nextLevel);
+document.getElementById('retry-btn').addEventListener('click', () => {
+  document.getElementById('gameover-overlay').classList.add('hidden');
+  cancelAnimationFrame(gs.animFrame);
+  initGame();
+  gs.phase = 'playing';
+  requestAnimationFrame(loop);
+});
+
+// ===================== INIT =====================
+window.addEventListener('resize', () => {
+  resize();
+  if (gs.paddle) {
+    gs.paddle.x = W / 2;
+    gs.ball.x = W / 2;
+    gs.ball.y = PADDLE_Y - BALL_R - 2;
+    buildBricks();
+  }
+});
+
+initGame();
+</script>
+</body>
+</html>
