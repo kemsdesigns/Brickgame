@@ -1107,7 +1107,7 @@ function hitBrick(b, ball) {
     gs.activeEffects.fireball--;
     // AOE Damage
     gs.bricks.forEach(other => {
-      if (other.alive && Math.hypot(other.x - b.x, other.y - b.y) < BRICK_W * 1.5) {
+      if (other !== b && other.alive && Math.hypot(other.x - b.x, other.y - b.y) < BRICK_W * 1.8) {
         other.hp = 0; other.alive = false; gs.brokenBricks++;
         gs.score += ROW_COLORS[other.row].score * gs.multiplier;
         spawnShatter(other.x + BRICK_W/2, other.y + BRICK_H/2, ROW_COLORS[other.row].main);
@@ -1198,6 +1198,8 @@ function applyPowerup(id) {
     case 'MEGA_CLEAN': 
       gs.lives = 3; updateLives(); 
       gs.bricks.forEach(b => { if(b.alive){ b.alive=false; gs.brokenBricks++; } });
+      updateLevelBar();
+      if (gs.brokenBricks >= gs.totalBricks) levelClear();
       break;
   }
 }
@@ -1303,9 +1305,24 @@ function drawPaddle() {
 }
 
 function drawBall() {
+  const isFireball = gs.activeEffects.fireball > 0;
   gs.balls.forEach(ball => {
     const bx = ball.x, by = ball.y;
     ctx2.save();
+
+    // Fireball effect
+    if (isFireball && !ball.attached) {
+      for (let i = 0; i < 6; i++) {
+        const sz = BALL_R * (1.2 + Math.random() * 0.8);
+        const ox = (Math.random() - 0.5) * 10;
+        const oy = (Math.random() - 0.5) * 10;
+        ctx2.fillStyle = i % 2 === 0 ? '#ff6b35' : '#ffcf33';
+        ctx2.globalAlpha = 0.4;
+        ctx2.beginPath();
+        ctx2.arc(bx + ox, by + oy, sz, 0, Math.PI * 2);
+        ctx2.fill();
+      }
+    }
 
     // Trail if moving
     if (!ball.attached) {
@@ -1314,10 +1331,17 @@ function drawBall() {
       const tx = bx - (ball.vx / speed) * trailLen;
       const ty = by - (ball.vy / speed) * trailLen;
       const trailGrad = ctx2.createLinearGradient(tx, ty, bx, by);
-      trailGrad.addColorStop(0, 'rgba(255,255,100,0)');
-      trailGrad.addColorStop(1, 'rgba(255,255,100,0.5)');
+      
+      if (isFireball) {
+        trailGrad.addColorStop(0, 'rgba(255,100,50,0)');
+        trailGrad.addColorStop(1, 'rgba(255,100,50,0.8)');
+      } else {
+        trailGrad.addColorStop(0, 'rgba(255,255,100,0)');
+        trailGrad.addColorStop(1, 'rgba(255,255,100,0.5)');
+      }
+      
       ctx2.strokeStyle = trailGrad;
-      ctx2.lineWidth = BALL_R * 1.2;
+      ctx2.lineWidth = BALL_R * (isFireball ? 1.8 : 1.2);
       ctx2.lineCap = 'round';
       ctx2.beginPath();
       ctx2.moveTo(tx, ty);
@@ -1326,12 +1350,12 @@ function drawBall() {
     }
 
     // Glow ring
-    ctx2.shadowColor = '#ffffaa';
-    ctx2.shadowBlur = 24;
+    ctx2.shadowColor = isFireball ? '#ff4400' : '#ffffaa';
+    ctx2.shadowBlur = isFireball ? 35 : 24;
     const radGrad = ctx2.createRadialGradient(bx - BALL_R * 0.3, by - BALL_R * 0.3, 0, bx, by, BALL_R);
     radGrad.addColorStop(0, '#ffffff');
-    radGrad.addColorStop(0.5, '#ffffcc');
-    radGrad.addColorStop(1, '#ffcc00');
+    radGrad.addColorStop(0.5, isFireball ? '#ff8800' : '#ffffcc');
+    radGrad.addColorStop(1, isFireball ? '#ff0000' : '#ffcc00');
     ctx2.fillStyle = radGrad;
     ctx2.beginPath();
     ctx2.arc(bx, by, BALL_R, 0, Math.PI * 2);
